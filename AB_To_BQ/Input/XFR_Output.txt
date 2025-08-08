@@ -1,0 +1,158 @@
+```sql
+-- =====================================================
+-- BigQuery UDF Conversion from Ab Initio XFR Files
+-- =====================================================
+
+-- UDF 1: Join Function (from IODS_CONS_CSV_DNTL_CLMDTL_HX_BR2_V0S69P1.xfr)
+-- Original: Ab Initio join transformation combining two input streams
+-- Now: BigQuery table-valued function for joining two datasets
+CREATE OR REPLACE FUNCTION `project.dataset.join_dental_claim_data`(
+  in0 ARRAY<STRUCT<
+    -- Add your actual schema fields here based on your data structure
+    claim_id STRING,
+    member_id STRING,
+    service_date DATE,
+    amount NUMERIC
+  >>,
+  in1 ARRAY<STRUCT<
+    -- Add your actual schema fields here based on your data structure  
+    claim_id STRING,
+    provider_id STRING,
+    diagnosis_code STRING,
+    procedure_code STRING
+  >>
+)
+RETURNS ARRAY<STRUCT<
+  -- Combined output schema
+  claim_id STRING,
+  member_id STRING,
+  service_date DATE,
+  amount NUMERIC,
+  provider_id STRING,
+  diagnosis_code STRING,
+  procedure_code STRING
+>>
+LANGUAGE js AS """
+  // Original: out.* :1: in0.*; out.* :2: in1.*;
+  // Now: JavaScript-based join logic for BigQuery
+  var result = [];
+  
+  for (var i = 0; i < in0.length; i++) {
+    for (var j = 0; j < in1.length; j++) {
+      if (in0[i].claim_id === in1[j].claim_id) {
+        result.push({
+          claim_id: in0[i].claim_id,
+          member_id: in0[i].member_id,
+          service_date: in0[i].service_date,
+          amount: in0[i].amount,
+          provider_id: in1[j].provider_id,
+          diagnosis_code: in1[j].diagnosis_code,
+          procedure_code: in1[j].procedure_code
+        });
+      }
+    }
+  }
+  
+  return result;
+""";
+
+-- UDF 2: Sequence Number Calculation (from IODS_CONS_CSV_DNTL_CLMDTL_HX_BR2_V0S48P3.xfr)
+-- Original: Ab Initio reformat with stateful sequence number calculation
+-- Now: BigQuery window function approach for sequence numbering
+CREATE OR REPLACE FUNCTION `project.dataset.calculate_dental_claim_sequence`()
+RETURNS STRING
+LANGUAGE SQL AS (
+  """
+  -- Original: Complex stateful sequence calculation with currkey, countcal, prevkey
+  -- Now: Using ROW_NUMBER() window function for cleaner sequence generation
+  SELECT 
+    *,
+    -- Original: countcal.v = (if ((currkey.v != prevkey.v)) (in.CONS_CSV_DENTAL_CLM_DTL_SEQ_NO + 1) else (countcal.v + 1))
+    -- Now: ROW_NUMBER() partitioned by claim ID for sequence calculation
+    ROW_NUMBER() OVER (
+      PARTITION BY CONS_CSV_DENTAL_CLM_HX_ID 
+      ORDER BY CONS_CSV_DENTAL_CLM_DTL_SEQ_NO
+    ) AS CONS_CSV_DENTAL_CLM_DTL_SEQ_NO_CALCULATED
+  FROM input_table
+  """
+);
+
+-- UDF 3: Reusable Dental Claim Schema Definition
+-- Original: Implicit schema from Ab Initio .xfr field references
+-- Now: Centralized schema-returning UDF for consistency
+CREATE OR REPLACE FUNCTION `project.dataset.get_dental_claim_schema`()
+RETURNS STRUCT<
+  CONS_CSV_DENTAL_CLM_HX_ID STRING,           -- Original: Primary claim identifier
+  CONS_CSV_DENTAL_CLM_DTL_SEQ_NO INT64,       -- Original: Detail sequence number
+  member_id STRING,                           -- Now: Standardized member identifier
+  service_date DATE,                          -- Now: Service date in DATE format
+  amount NUMERIC(10,2),                       -- Now: Monetary amount with precision
+  provider_id STRING,                         -- Now: Provider identifier
+  diagnosis_code STRING,                      -- Now: Diagnosis code
+  procedure_code STRING,                      -- Now: Procedure code
+  created_timestamp TIMESTAMP                 -- Now: Audit timestamp
+>
+AS (
+  -- Original: Schema defined implicitly in Ab Initio transformations
+  -- Now: Explicit schema definition for reuse across queries
+  STRUCT(
+    CAST(NULL AS STRING) AS CONS_CSV_DENTAL_CLM_HX_ID,
+    CAST(NULL AS INT64) AS CONS_CSV_DENTAL_CLM_DTL_SEQ_NO,
+    CAST(NULL AS STRING) AS member_id,
+    CAST(NULL AS DATE) AS service_date,
+    CAST(NULL AS NUMERIC) AS amount,
+    CAST(NULL AS STRING) AS provider_id,
+    CAST(NULL AS STRING) AS diagnosis_code,
+    CAST(NULL AS STRING) AS procedure_code,
+    CAST(NULL AS TIMESTAMP) AS created_timestamp
+  )
+);
+
+-- UDF 4: Enhanced Sequence Calculation with State Management
+-- Original: Stateful variables (currkey, countcal, prevkey) in Ab Initio
+-- Now: SQL-based approach using analytic functions
+CREATE OR REPLACE FUNCTION `project.dataset.reformat_dental_claim_details`(
+  input_data ARRAY<STRUCT<
+    CONS_CSV_DENTAL_CLM_HX_ID STRING,
+    CONS_CSV_DENTAL_CLM_DTL_SEQ_NO INT64,
+    member_id STRING,
+    service_date DATE,
+    amount NUMERIC
+  >>
+)
+RETURNS ARRAY<STRUCT<
+  CONS_CSV_DENTAL_CLM_HX_ID STRING,
+  CONS_CSV_DENTAL_CLM_DTL_SEQ_NO INT64,
+  member_id STRING,
+  service_date DATE,
+  amount NUMERIC,
+  calculated_sequence INT64
+>>
+LANGUAGE SQL AS (
+  -- Original: Complex stateful logic with let record declarations
+  -- Now: Clean SQL with window functions for sequence calculation
+  ARRAY(
+    SELECT AS STRUCT
+      CONS_CSV_DENTAL_CLM_HX_ID,
+      CONS_CSV_DENTAL_CLM_DTL_SEQ_NO,
+      member_id,
+      service_date,
+      amount,
+      -- Original: if ((currkey.v != prevkey.v)) (in.CONS_CSV_DENTAL_CLM_DTL_SEQ_NO + 1) else (countcal.v + 1)
+      -- Now: ROW_NUMBER() provides clean sequence numbering
+      ROW_NUMBER() OVER (
+        PARTITION BY CONS_CSV_DENTAL_CLM_HX_ID 
+        ORDER BY CONS_CSV_DENTAL_CLM_DTL_SEQ_NO
+      ) AS calculated_sequence
+    FROM UNNEST(input_data)
+  )
+);
+
+-- Usage Example Query:
+-- SELECT * FROM `project.dataset.reformat_dental_claim_details`(
+--   ARRAY[
+--     STRUCT('CLM001' AS CONS_CSV_DENTAL_CLM_HX_ID, 1 AS CONS_CSV_DENTAL_CLM_DTL_SEQ_NO, 'MEM001' AS member_id, DATE '2023-01-01' AS service_date, 100.00 AS amount),
+--     STRUCT('CLM001' AS CONS_CSV_DENTAL_CLM_HX_ID, 2 AS CONS_CSV_DENTAL_CLM_DTL_SEQ_NO, 'MEM001' AS member_id, DATE '2023-01-02' AS service_date, 150.00 AS amount)
+--   ]
+-- );
+```

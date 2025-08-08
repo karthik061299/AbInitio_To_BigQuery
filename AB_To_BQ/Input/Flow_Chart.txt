@@ -1,0 +1,59 @@
+### Workflow Mapping: CONS_CSV_DNTL_CLMDTL_HX_BR2
+
+This mapping outlines the flow of the data workflow, indicating where the process **starts**, the key intermediate stages, and where it **ends**.
+
+#### Start:
+- **Source: V0S77P1 (TGT SeqNo)**
+  - Initial data ingestion point.
+  - This component starts the process with a target sequence number.
+
+#### Step 1: Join Operation
+- **JOIN between V0S77P1 and V0S69**
+  - V0S69 is an inner join operation using data from V0S77P1.
+  - Data flows from V0S77P1 to V0S69.
+
+#### Step 2: Reformat and Adaptation
+- **Reformat (RFMT) applied at V0S49P2**
+- **Adaptor V0S48P3** connects to dataset **DS DENTAL CLMDTL HX INS**
+  - Data moves through adaptor to reformat dental claim detail history input.
+  
+---
+
+#### Step 3: Output and Further Processing
+- **Output Table: DS CONS CSV DENTAL CLMDTL HX (via V0S67)**
+  - Following adaptation and reformatting, data lands into this consolidated dental claim detail history dataset.
+
+#### Step 4: Sorting and Key Generation Stages
+- **V0S48P1: Sort & XFM Key Generation**
+  - Partition by Key-1.
+  - Data flows from DS CONS CSV DENTAL CLMDTL HX output to this step.
+  
+- **V0S48: Additional Transform & Partition**
+  - Partition by Key-2.
+  - Further transformation and partitioning after sort/key gen.
+
+- **V0S69P2: Sort & Join (S Inner Join)**
+  - Data flows through a sorting and inner join stage.
+  
+- **V0S69P4: Final Sort & Join**
+  - Partition by Key-3.
+  - Final sorting and joining step before concluding the process.
+
+#### End:
+- The workflow concludes at the output of **V0S69P4**, which is the last sorting and join operation in the chain.
+
+### Summary of Data Flow
+
+| From            | Operation / Transformation           | To                   | Notes                           |
+|-----------------|------------------------------------|----------------------|--------------------------------|
+| V0S77P1         | Initial Data (TGT SeqNo)           | V0S69 (Inner Join)   | Start of workflow               |
+| V0S69           | Inner Join                        | V0S49P2 (RFMT)       | Joined & reformatted            |
+| V0S49P2         | Reformat                         | V0S48P3 (Adaptor)    | Data adapted to dental dataset  |
+| V0S48P3         | Adaptor                         | DS DENTAL CLMDTL HX INS | Dataset for dental claim history |
+| DS DENTAL CLMDTL HX | Output Table                  | V0S67                 | Consolidated output             |
+| V0S67           | Passes to sort/key gen           | V0S48P1               | Sort and key gen, partition by Key-1 |
+| V0S48P1         | Sort and key gen                 | V0S48                 | Additional transform, partition by Key-2 |
+| V0S48           | Transform                      | V0S69P2                | Sort and inner join             |
+| V0S69P2         | Sorting and inner join          | V0S69P4                | Final sort and join, partition by Key-3 |
+| V0S69P4         | Final Stage                    | Output                  | End of workflow                |
+
