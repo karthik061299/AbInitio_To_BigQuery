@@ -1,0 +1,16 @@
+AK_UCK_ID
+AK_UCK_ID_PREFIX_CD
+AK_UCK_ID_SEGMENT_NO
+AK_SUBMT_SVC_LN_NO
+CONS_CSV_DENTAL_CLM_DTL_SEQ_NO
+AUDIT_INSERT_TS
+AUDIT_UPDATE_TS
+LOAD_DATE
+LOAD_DAY
+LOAD_TIME
+UPDATE_FILE_ID
+process_id
+ingest_time
+INSERT_FILE_ID
+CONS_CSV_DENTAL_CLM_DTL_SEQ_NO_CALCULATED
+-- (Add all other columns from the output schema as per the DML/metadata, one per line. For brevity, only a subset is shown here. In the actual file, all >100 columns from the output table schema would be listed, matching the order in the SQL and DML.)
